@@ -1,112 +1,217 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { CasBrandHeader } from '@/components/cas-brand-header';
 
-export default function TabTwoScreen() {
+type Lab = {
+  id: string;
+  name: string;
+  capacity: number;
+  occupied: number;
+};
+
+const baseLabs: Lab[] = [
+  { id: 'lab-1', name: 'Laboratorio Redes', capacity: 30, occupied: 20 },
+  { id: 'lab-2', name: 'Laboratorio Informatica', capacity: 25, occupied: 10 },
+  { id: 'lab-3', name: 'Laboratorio Multimedia', capacity: 20, occupied: 8 },
+];
+
+export default function AdminPanelScreen() {
+  const [labs, setLabs] = useState(baseLabs);
+  const [selectedLabId, setSelectedLabId] = useState(baseLabs[0].id);
+  const [lastSync, setLastSync] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLabs((current) =>
+        current.map((lab) => {
+          const variation = Math.floor(Math.random() * 5) - 2;
+          const nextOccupied = Math.max(0, Math.min(lab.capacity, lab.occupied + variation));
+          return { ...lab, occupied: nextOccupied };
+        })
+      );
+      setLastSync(new Date());
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const selectedLab = useMemo(
+    () => labs.find((lab) => lab.id === selectedLabId) ?? labs[0],
+    [labs, selectedLabId]
+  );
+
+  const qrUrl = `https://quickchart.io/qr?text=CAS-${encodeURIComponent(selectedLab.name)}-ACCESO&size=220`;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <CasBrandHeader
+          title="Panel Administrativo CAS"
+          subtitle="Control de laboratorios, reservas y acceso QR"
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Disponibilidad en tiempo real</Text>
+          <Text style={styles.helperText}>
+            Ultima actualizacion: {lastSync.toLocaleTimeString('es-CO')}
+          </Text>
+          {labs.map((lab) => {
+            const available = lab.capacity - lab.occupied;
+            return (
+              <View key={lab.id} style={styles.labRow}>
+                <View style={styles.labInfo}>
+                  <Text style={styles.labName}>{lab.name}</Text>
+                  <Text style={styles.labMeta}>
+                    {available} cupos libres de {lab.capacity}
+                  </Text>
+                </View>
+                <View style={[styles.badge, available < 5 ? styles.badgeWarn : styles.badgeOk]}>
+                  <Text style={styles.badgeText}>{available < 5 ? 'Alta demanda' : 'Disponible'}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Reserva automatizada</Text>
+          <View style={styles.chipRow}>
+            {labs.map((lab) => (
+              <Pressable
+                key={lab.id}
+                onPress={() => setSelectedLabId(lab.id)}
+                style={[styles.chip, selectedLabId === lab.id && styles.chipActive]}>
+                <Text style={[styles.chipText, selectedLabId === lab.id && styles.chipTextActive]}>
+                  {lab.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Reservar bloque disponible</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Control de acceso con QR</Text>
+          <Text style={styles.helperText}>Escanear en entrada: {selectedLab.name}</Text>
+          <Image source={{ uri: qrUrl }} style={styles.qr} contentFit="contain" />
+          <Text style={styles.qrLegend}>Codigo dinamico generado para acceso seguro.</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
   },
-  titleContainer: {
+  content: {
+    padding: 16,
+    gap: 14,
+    paddingBottom: 30,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 14,
+    gap: 10,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  helperText: {
+    color: '#64748b',
+    fontSize: 13,
+  },
+  labRow: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 10,
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  labInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  labName: {
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  labMeta: {
+    color: '#475569',
+    fontSize: 13,
+  },
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  badgeOk: {
+    backgroundColor: '#16a34a',
+  },
+  badgeWarn: {
+    backgroundColor: '#d97706',
+  },
+  badgeText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  chipActive: {
+    backgroundColor: '#008f3d',
+    borderColor: '#008f3d',
+  },
+  chipText: {
+    color: '#1e293b',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  chipTextActive: {
+    color: '#fff',
+  },
+  primaryButton: {
+    backgroundColor: '#008f3d',
+    borderRadius: 10,
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  qr: {
+    width: 220,
+    height: 220,
+    alignSelf: 'center',
+  },
+  qrLegend: {
+    textAlign: 'center',
+    color: '#475569',
   },
 });
