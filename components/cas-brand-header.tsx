@@ -10,7 +10,7 @@ export function CasBrandHeader({ title, subtitle }: CasBrandHeaderProps) {
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
-        <Image source={require('@/assets/images/cecar-logo.png')} style={styles.cecarLogo} contentFit="contain" />
+        <Image source={require('@/assets/images/cecar-logo-extended.png')} style={styles.cecarLogo} contentFit="contain" />
       </View>
       <View style={styles.hero}>
         <View style={styles.textContent}>
