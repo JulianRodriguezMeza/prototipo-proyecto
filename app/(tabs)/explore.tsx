@@ -1,31 +1,22 @@
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, ActivityIndicator, TextInput } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
+import { api, Lab, ReservationRequest } from '@/lib/api';
 
 type NavItem = {
   id: string;
   label: string;
 };
 
-type Lab = {
-  id: string;
-  name: string;
-  capacity: number;
-  occupied: number;
-};
-
-type ReservationRequest = {
-  id: string;
-  roomName: string;
-  requester: string;
-  status: 'Pendiente' | 'En revision' | 'Aprobada' | 'Rechazada';
-};
-
 export default function AdminPanelScreen() {
   const { signOut, user } = useAuth();
   const [activeNav, setActiveNav] = useState<string>('dashboard');
+  const [labs, setLabs] = useState<Lab[]>([]);
+  const [requests, setRequests] = useState<ReservationRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionNotes, setActionNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (user?.role === 'auxiliar' && (activeNav === 'dashboard' || activeNav === 'reservas' || activeNav === 'fallas' || activeNav === 'metricas')) {
@@ -35,22 +26,23 @@ export default function AdminPanelScreen() {
     }
   }, [user?.role, activeNav]);
 
-
-
-  const labs = useMemo<Lab[]>(
-    () => [
-      { id: 'lab-1', name: 'Laboratorio de Redes', capacity: 30, occupied: 18 },
-      { id: 'lab-2', name: 'Laboratorio de Informatica', capacity: 25, occupied: 9 },
-      { id: 'lab-3', name: 'Laboratorio Multimedia', capacity: 20, occupied: 7 },
-    ],
-    []
-  );
-
-  const [requests, setRequests] = useState<ReservationRequest[]>([
-    { id: 'r-1', roomName: 'Laboratorio Multimedia', requester: 'Est. Juan P.', status: 'Pendiente' },
-    { id: 'r-2', roomName: 'Laboratorio de Redes', requester: 'Est. Maria G.', status: 'Pendiente' },
-    { id: 'r-3', roomName: 'Laboratorio de Informatica', requester: 'Est. Carlos R.', status: 'En revision' },
-  ]);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [fetchedLabs, fetchedReqs] = await Promise.all([
+          api.getLabs(),
+          api.getRequests()
+        ]);
+        setLabs(fetchedLabs);
+        setRequests(fetchedReqs);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   const topRooms = useMemo(
     () => [
@@ -79,13 +71,13 @@ export default function AdminPanelScreen() {
   }, [user?.role]);
 
   const totalCapacity = useMemo(() => labs.reduce((acc, l) => acc + l.capacity, 0), [labs]);
-  const totalOccupied = useMemo(() => labs.reduce((acc, l) => acc + l.occupied, 0), [labs]);
-  const totalAvailable = useMemo(() => Math.max(0, totalCapacity - totalOccupied), [totalCapacity, totalOccupied]);
+  const totalOccupied = useMemo(() => requests.filter((r) => r.status === 'Aprobada').length, [requests]);
+  const totalAvailable = useMemo(() => requests.length, [requests]);
 
   const selectedLab = labs[0];
   const qrUrl = useMemo(
-    () => `https://quickchart.io/qr?text=SIGLA-CECAR-${encodeURIComponent(selectedLab.name)}&size=220`,
-    [selectedLab.name]
+    () => `https://quickchart.io/qr?text=SIGLA-CECAR-${encodeURIComponent(selectedLab?.name || 'Cargando')}&size=220`,
+    [selectedLab?.name]
   );
 
   const pendingCount = useMemo(
@@ -93,17 +85,28 @@ export default function AdminPanelScreen() {
     [requests]
   );
 
-  const setRequestStatus = (id: string, status: ReservationRequest['status']) => {
-    setRequests((current) => current.map((r) => (r.id === id ? { ...r, status } : r)));
+  const setRequestStatus = async (id: string, status: ReservationRequest['status']) => {
+    const note = actionNotes[id] || '';
+    setRequests((current) => current.map((r) => (r.id === id ? { ...r, status, adminNote: note || r.adminNote } : r)));
+    try {
+      await api.updateRequestStatus(id, status, note);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const approveAllPending = () => {
+  const approveAllPending = async () => {
     setRequests((current) =>
       current.map((r) =>
         r.status === 'Pendiente' || r.status === 'En revision' ? { ...r, status: 'Aprobada' } : r
       )
     );
     setActiveNav('dashboard');
+    try {
+      await api.approveAllPending();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -149,6 +152,7 @@ export default function AdminPanelScreen() {
           <View style={styles.topbar}>
             <Text style={styles.topbarTitle}>
               {navItems.find((item) => item.id === activeNav)?.label || 'Inicio'}
+              {isLoading && <ActivityIndicator size="small" color="#047857" style={{ marginLeft: 10 }} />}
             </Text>
             <View style={styles.topbarRight}>
               <Pressable onPress={signOut} style={styles.signOut}>
@@ -161,11 +165,11 @@ export default function AdminPanelScreen() {
             <>
               <View style={styles.kpiStrip}>
                 <View style={[styles.kpiWide, styles.kpiWideGreen]}>
-                  <Text style={styles.kpiWideLabel}>Disponibles</Text>
+                  <Text style={styles.kpiWideLabel}>Total Solicitudes</Text>
                   <Text style={styles.kpiWideValue}>{totalAvailable}</Text>
                 </View>
                 <View style={[styles.kpiWide, styles.kpiWideGray]}>
-                  <Text style={styles.kpiWideLabel}>Ocupados</Text>
+                  <Text style={styles.kpiWideLabel}>Ocupados (Aprobadas)</Text>
                   <Text style={styles.kpiWideValue}>{totalOccupied}</Text>
                 </View>
                 <View style={[styles.kpiWide, styles.kpiWideAmber]}>
@@ -270,22 +274,42 @@ export default function AdminPanelScreen() {
 
             {activeNav === 'reservas' && (
               <View style={[styles.card, styles.cardLarge]}>
-                <Text style={styles.sectionTitle}>Reserva automatizada</Text>
-                <Text style={styles.helperText}>Solicitudes recientes (pendientes / en revisión).</Text>
+                <Text style={styles.sectionTitle}>Historial y Gestión de Reservas</Text>
+                <Text style={styles.helperText}>Todas las solicitudes enviadas por los estudiantes.</Text>
                 {requests
-                  .filter((r) => r.status === 'Pendiente' || r.status === 'En revision')
                   .map((item) => (
-                  <View key={item.id} style={styles.listRow}>
-                    <View style={styles.listRowInfo}>
-                      <Text style={styles.listRowTitle}>{item.roomName}</Text>
-                      <Text style={styles.listRowSub}>{item.requester}</Text>
-                    </View>
-                    <View style={styles.rowActions}>
-                      <View style={[styles.pill, item.status === 'Pendiente' ? styles.pillGreen : styles.pillGray]}>
-                        <Text style={styles.pillText}>{item.status}</Text>
+                  <View key={item.id} style={[styles.listRow, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={styles.listRowInfo}>
+                        <Text style={styles.listRowTitle}>{item.roomName}</Text>
+                        <Text style={styles.listRowSub}>{item.requester}</Text>
+                        {item.reservationDate && <Text style={{ color: '#008f3d', fontSize: 13, marginTop: 2 }}>Fecha: {item.reservationDate}</Text>}
+                        {item.observations && <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>Obs: {item.observations}</Text>}
+                        {item.adminNote && <Text style={{ color: '#ef4444', fontSize: 12, marginTop: 2 }}>Nota Admin: {item.adminNote}</Text>}
                       </View>
-                      {user?.role === 'admin' && (
-                        <>
+                      <View style={[styles.pill, 
+                        item.status === 'Pendiente' ? styles.pillGreen : 
+                        item.status === 'Aprobada' ? { backgroundColor: '#dcfce7' } : 
+                        item.status === 'Rechazada' ? { backgroundColor: '#fee2e2' } : 
+                        styles.pillGray
+                      ]}>
+                        <Text style={[styles.pillText, 
+                          item.status === 'Aprobada' ? { color: '#065f46' } : 
+                          item.status === 'Rechazada' ? { color: '#b91c1c' } : 
+                          { color: '#0f172a' }
+                        ]}>{item.status}</Text>
+                      </View>
+                    </View>
+                    
+                    {user?.role === 'admin' && (item.status === 'Pendiente' || item.status === 'En revision') && (
+                      <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 10 }}>
+                        <TextInput
+                          value={actionNotes[item.id] || ''}
+                          onChangeText={(text) => setActionNotes(prev => ({ ...prev, [item.id]: text }))}
+                          placeholder="Observación o propuesta (ej. sugerir el jueves de 4 a 6)"
+                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 8, fontSize: 13, marginBottom: 8 }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
                           <Pressable
                             onPress={() => setRequestStatus(item.id, 'Aprobada')}
                             style={[styles.actionBtn, styles.actionApprove]}>
@@ -294,18 +318,14 @@ export default function AdminPanelScreen() {
                           <Pressable
                             onPress={() => setRequestStatus(item.id, 'Rechazada')}
                             style={[styles.actionBtn, styles.actionReject]}>
-                            <Text style={styles.actionBtnText}>Rechazar</Text>
+                            <Text style={styles.actionBtnText}>Devolver / Sugerir</Text>
                           </Pressable>
-                        </>
-                      )}
-                    </View>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 ))}
-                {user?.role === 'admin' && (
-                  <Pressable style={styles.primaryButton} onPress={approveAllPending}>
-                    <Text style={styles.primaryButtonText}>Aprobar / Gestionar</Text>
-                  </Pressable>
-                )}
+
               </View>
             )}
             {activeNav === 'fallas' && (

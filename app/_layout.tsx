@@ -13,12 +13,14 @@ export const unstable_settings = {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isAuthLoading, user } = useAuth();
 
   const currentGroup = String(segments[0] ?? '');
   const isAuthRoute = currentGroup === 'login' || currentGroup === 'auth';
 
   const redirect = useMemo(() => {
+    if (isAuthLoading) return null;
+
     if (!isAuthenticated && !isAuthRoute) {
       return <Redirect href={'/login' as never} />;
     }
@@ -29,7 +31,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     return null;
-  }, [isAuthenticated, isAuthRoute, user?.role]);
+  }, [isAuthenticated, isAuthLoading, isAuthRoute, user?.role]);
+
+  if (isAuthLoading) {
+    return null; // Esperando a que se cargue la sesión
+  }
 
   return (
     <>

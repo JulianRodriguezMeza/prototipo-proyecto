@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "Prototipo",
+    "name": "CAS",
     "slug": "Prototipo",
+    "backgroundColor": "#2e5b44",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo-cas.png",
     "scheme": "prototipo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,10 +14,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#80cba6",
+        "foregroundImage": "./assets/images/logo-cas.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -31,15 +30,17 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/logo-cas.png",
+          "imageWidth": 400,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#2e5b44",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1f402f"
           }
         }
-      ]
+      ],
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

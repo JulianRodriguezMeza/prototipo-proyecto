@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type UserRole = 'student' | 'admin' | 'auxiliar';
 
@@ -11,6 +12,7 @@ export type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
   signIn: (user: AuthUser) => void;
   signOut: () => void;
 };
@@ -19,23 +21,51 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  const signIn = useCallback((nextUser: AuthUser) => {
-    setUser(nextUser);
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user_session');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Error cargando la sesión', error);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+    loadSession();
   }, []);
 
-  const signOut = useCallback(() => {
+  const signIn = useCallback(async (nextUser: AuthUser) => {
+    setUser(nextUser);
+    try {
+      await AsyncStorage.setItem('user_session', JSON.stringify(nextUser));
+    } catch (error) {
+      console.error('Error guardando la sesión', error);
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
     setUser(null);
+    try {
+      await AsyncStorage.removeItem('user_session');
+    } catch (error) {
+      console.error('Error eliminando la sesión', error);
+    }
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: Boolean(user),
+      isAuthLoading,
       signIn,
       signOut,
     }),
-    [signIn, signOut, user]
+    [signIn, signOut, user, isAuthLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
