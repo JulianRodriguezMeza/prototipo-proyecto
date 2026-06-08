@@ -45,7 +45,7 @@ import { Platform } from 'react-native';
 // Detectar automáticamente si estamos en la web o en el celular (App)
 const BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost/backend' 
-  : 'http://192.168.1.75/backend';
+  : 'https://loose-months-stand.loca.lt/backend';
 
 export const api = {
   getLabs: async (): Promise<Lab[]> => {
@@ -56,9 +56,8 @@ export const api = {
       if (!response.ok) throw new Error('Network error');
       return await response.json();
     } catch (e) {
-      console.warn('Fallo PHP, usando fallback local', e);
-      const data = await AsyncStorage.getItem('cecar_labs');
-      return data ? JSON.parse(data) : DEFAULT_LABS;
+      console.error('Error al obtener laboratorios en PHP:', e);
+      throw e;
     }
   },
   
@@ -75,8 +74,8 @@ export const api = {
       
       return data;
     } catch (e) {
-      const data = await AsyncStorage.getItem('cecar_requests');
-      return data ? JSON.parse(data) : DEFAULT_REQUESTS;
+      console.error('Error al obtener reservas en PHP:', e);
+      throw e;
     }
   },
   
@@ -89,21 +88,12 @@ export const api = {
       });
       const data = await response.json();
       if (data.error) {
-          // Si el error viene de PHP (como el horario ocupado), queremos mostrarlo en pantalla.
           throw new Error(data.error);
       }
       return data;
     } catch (e: any) {
-      // Si el error es el de horario ocupado u otro de validación enviado desde PHP, lo relanzamos
-      if (e.message && e.message.includes('ocupado')) {
-          throw e;
-      }
-      
-      console.warn('Fallo PHP, creando localmente', e);
-      const requests = await api.getRequests();
-      const newReq: ReservationRequest = { ...req, id: `r-${Date.now()}`, status: 'Pendiente' };
-      await AsyncStorage.setItem('cecar_requests', JSON.stringify([newReq, ...requests]));
-      return newReq;
+      console.error('Error al crear reserva en PHP:', e);
+      throw e;
     }
   },
   
@@ -117,11 +107,8 @@ export const api = {
       const data = await response.json();
       if (data.error) throw new Error(data.error);
     } catch (e) {
-      console.warn('Error al actualizar en la BD. Guardando en local...', e);
-      const requests = await api.getRequests();
-      const updated = requests.map(r => r.id === id ? { ...r, status, adminNote: adminNote || r.adminNote } : r);
-      await AsyncStorage.setItem('cecar_requests', JSON.stringify(updated));
-      // throw e; // Opcionalmente podríamos relanzarlo para que la UI sepa que falló la BD
+      console.error('Error al actualizar estado en PHP:', e);
+      throw e;
     }
   },
   
@@ -133,11 +120,8 @@ export const api = {
         body: JSON.stringify({ id: 'approveAll', status: 'Aprobada' })
       });
     } catch (e) {
-      const requests = await api.getRequests();
-      const updated = requests.map(r => 
-        r.status === 'Pendiente' || r.status === 'En revision' ? { ...r, status: 'Aprobada' } : r
-      );
-      await AsyncStorage.setItem('cecar_requests', JSON.stringify(updated));
+      console.error('Error al aprobar todo en PHP:', e);
+      throw e;
     }
   }
 };
