@@ -45,7 +45,7 @@ import { Platform } from 'react-native';
 // Detectar automáticamente si estamos en la web o en el celular (App)
 const BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost/backend' 
-  : 'https://loose-months-stand.loca.lt/backend';
+  : 'http://192.168.1.75/backend';
 
 export const api = {
   getLabs: async (): Promise<Lab[]> => {
@@ -68,7 +68,12 @@ export const api = {
         headers: { 'Bypass-Tunnel-Reminder': 'true' }
       });
       if (!response.ok) throw new Error('Network error');
-      return await response.json();
+      const data = await response.json();
+      
+      // Si logramos conectar a la BD, borramos los fantasmas locales para limpiar la pantalla
+      await AsyncStorage.removeItem('cecar_requests');
+      
+      return data;
     } catch (e) {
       const data = await AsyncStorage.getItem('cecar_requests');
       return data ? JSON.parse(data) : DEFAULT_REQUESTS;
@@ -83,9 +88,17 @@ export const api = {
         body: JSON.stringify(req)
       });
       const data = await response.json();
-      if (data.error) throw new Error(data.error + (data.detalles ? JSON.stringify(data.detalles) : ''));
+      if (data.error) {
+          // Si el error viene de PHP (como el horario ocupado), queremos mostrarlo en pantalla.
+          throw new Error(data.error);
+      }
       return data;
-    } catch (e) {
+    } catch (e: any) {
+      // Si el error es el de horario ocupado u otro de validación enviado desde PHP, lo relanzamos
+      if (e.message && e.message.includes('ocupado')) {
+          throw e;
+      }
+      
       console.warn('Fallo PHP, creando localmente', e);
       const requests = await api.getRequests();
       const newReq: ReservationRequest = { ...req, id: `r-${Date.now()}`, status: 'Pendiente' };
@@ -96,15 +109,19 @@ export const api = {
   
   updateRequestStatus: async (id: string, status: ReservationRequest['status'], adminNote?: string): Promise<void> => {
     try {
-      await fetch(`${BASE_URL}/update_reserva.php`, {
+      const response = await fetch(`${BASE_URL}/update_reserva.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
         body: JSON.stringify({ id, status, adminNote })
       });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
     } catch (e) {
+      console.warn('Error al actualizar en la BD. Guardando en local...', e);
       const requests = await api.getRequests();
       const updated = requests.map(r => r.id === id ? { ...r, status, adminNote: adminNote || r.adminNote } : r);
       await AsyncStorage.setItem('cecar_requests', JSON.stringify(updated));
+      // throw e; // Opcionalmente podríamos relanzarlo para que la UI sepa que falló la BD
     }
   },
   

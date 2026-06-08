@@ -2,8 +2,13 @@
 // backend/create_reserva.php
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, Bypass-Tunnel-Reminder");
+
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
 
 include_once 'conexion.php';
 
@@ -30,7 +35,33 @@ if(!empty($data->roomName) && !empty($data->requester)) {
     $t_fin = strtotime($raw_fin);
     $h_fin = $t_fin ? date("H:i:s", $t_fin) : '10:00:00';
 
-    // 2. Insertamos la reserva
+    $fecha_r = isset($data->reservationDate) ? $data->reservationDate : null;
+    $obs = isset($data->observations) ? $data->observations : null;
+
+    // 2. Validación de superposición (evitar empalmes en el mismo horario y espacio)
+    if ($fecha_r) {
+        $queryCheck = "SELECT id_reserva FROM reserva 
+                       WHERE id_espacio = :id_espacio 
+                       AND fecha_reserva = :fecha_reserva
+                       AND estado != 'Rechazada' 
+                       AND estado != 'Cancelada'
+                       AND hora_inicio < :h_fin
+                       AND hora_fin > :h_inicio
+                       LIMIT 1";
+        $stmtCheck = $conexion->prepare($queryCheck);
+        $stmtCheck->bindParam(':id_espacio', $id_espacio);
+        $stmtCheck->bindParam(':fecha_reserva', $fecha_r);
+        $stmtCheck->bindParam(':h_fin', $h_fin);
+        $stmtCheck->bindParam(':h_inicio', $h_inicio);
+        $stmtCheck->execute();
+        
+        if ($stmtCheck->fetch()) {
+            echo json_encode(["error" => "El horario seleccionado ya está ocupado."]);
+            exit;
+        }
+    }
+
+    // 3. Insertamos la reserva
     $query = "INSERT INTO reserva 
              (codigo, hora_inicio, hora_fin, fecha_registro, estado, id_actividad, id_espacio, id_usuario, asistencia_id_asistencia, fecha_reserva, observaciones) 
              VALUES 
@@ -44,8 +75,6 @@ if(!empty($data->roomName) && !empty($data->requester)) {
     $stmt->bindParam(":h_inicio", $h_inicio);
     $stmt->bindParam(":h_fin", $h_fin);
     $stmt->bindParam(":id_espacio", $id_espacio);
-    $fecha_r = isset($data->reservationDate) ? $data->reservationDate : null;
-    $obs = isset($data->observations) ? $data->observations : null;
     $stmt->bindParam(":fecha_reserva", $fecha_r);
     $stmt->bindParam(":observaciones", $obs);
     

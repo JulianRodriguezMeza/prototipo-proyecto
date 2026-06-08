@@ -41,29 +41,26 @@ export default function LoginScreen() {
   );
 
   const signInWithCas = useCallback(async () => {
+    if (!username.trim() || !password.trim()) {
+      setError('Por favor ingresa tu usuario y contraseña');
+      return;
+    }
     setError(null);
     setIsLoading(true);
     try {
-      const loginUrl = createCasLoginUrl();
-      const result = await WebBrowser.openAuthSessionAsync(loginUrl);
+      // Simular un retraso de red para el login
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
-      if (result.type !== 'success' || !result.url) {
-        throw new Error('CAS cancelado');
-      }
-
-      const ticket = extractTicket(result.url);
-      if (!ticket) throw new Error('No se recibio ticket CAS');
-
-      const casUser = await validateTicket(ticket);
-      const role = inferRoleFromUsername(casUser.username);
-      signIn({ username: casUser.username, displayName: casUser.displayName, role });
+      const u = username.trim();
+      const role = inferRoleFromUsername(u);
+      signIn({ username: u, displayName: u, role });
       goAfterLogin(role);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No fue posible iniciar sesion');
     } finally {
       setIsLoading(false);
     }
-  }, [goAfterLogin, signIn]);
+  }, [goAfterLogin, signIn, username, password]);
 
   const signInDemo = useCallback(() => {
     setError(null);

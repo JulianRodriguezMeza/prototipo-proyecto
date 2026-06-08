@@ -107,9 +107,12 @@ export default function CasScreen() {
     loadData();
   }, [user?.username]);
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   const sendRequest = async () => {
     if (!canSend) return;
     setIsSending(true);
+    setErrorMsg(''); // Limpiar errores anteriores
     try {
       const newReq = await api.createRequest({
         roomName: subject.trim(),
@@ -127,8 +130,9 @@ export default function CasScreen() {
       setStartTime('');
       setEndTime('');
       setShowAvailability(true);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setErrorMsg(e.message || 'Error al procesar la solicitud.');
     } finally {
       setIsSending(false);
     }
@@ -323,6 +327,11 @@ export default function CasScreen() {
             style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}>
             <Text style={styles.sendButtonText}>Enviar solicitud</Text>
           </Pressable>
+          {errorMsg ? (
+            <Text style={{ color: '#ef4444', fontWeight: 'bold', textAlign: 'center', marginTop: 8 }}>
+              {errorMsg}
+            </Text>
+          ) : null}
         </View>
 
         {showAvailability ? (
